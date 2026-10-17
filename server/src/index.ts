@@ -31,6 +31,7 @@ const entrySchema = new Schema({
   completed: { type: Boolean, default: false },
 }, { timestamps: true });
 entrySchema.index({ nameId: 1, date: 1, createdAt: -1 });
+entrySchema.index({ nameId: 1, createdAt: -1 });
 
 const Person = mongoose.model('Person', nameSchema);
 const Entry = mongoose.model('Entry', entrySchema);
@@ -107,10 +108,10 @@ app.delete('/api/names/:id', wrap(async (req, res) => {
 
 app.get('/api/names/:id/entries', wrap(async (req, res) => {
   if (!isId(req.params.id)) { res.status(400).json({ error: 'Invalid ID' }); return; }
-  const date = validDate.parse(req.query.date);
   const found = await Person.exists({ _id: req.params.id });
   if (!found) { res.status(404).json({ error: 'Name not found' }); return; }
-  const entries = await Entry.find({ nameId: req.params.id, date })
+  // Return the full ledger. Dates remain properties of entries, never a filter.
+  const entries = await Entry.find({ nameId: req.params.id })
     .sort({ createdAt: -1, _id: -1 }).lean();
   res.json(entries);
 }));

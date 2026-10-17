@@ -26,7 +26,7 @@ export const api = {
   addName: (name: string, section: Section) => call<Person>('/names', { method: 'POST', body: JSON.stringify({ name, section }) }),
   renameName: (id: string, name: string) => call<Person>(`/names/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
   deleteName: (id: string) => call<void>(`/names/${id}`, { method: 'DELETE' }),
-  getEntries: (nameId: string, date: string) => call<Entry[]>(`/names/${nameId}/entries?date=${encodeURIComponent(date)}`),
+  getEntries: (nameId: string) => call<Entry[]>(`/names/${nameId}/entries`),
   addEntry: (nameId: string, input: Pick<Entry, 'date' | 'title' | 'quantity' | 'price' | 'completed'>) =>
     call<Entry>(`/names/${nameId}/entries`, { method: 'POST', body: JSON.stringify(input) }),
   patchEntry: (id: string, patch: EntryPatch, keepalive = false) =>
