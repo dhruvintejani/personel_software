@@ -73,3 +73,38 @@ After pulling changes and connecting to Atlas (`/api/health` returns `{"ok":true
 8. Verify success toasts vanish after about 1.8 seconds and that API outages show an error/retry rather than an empty ledger.
 
 Unit tests/builds do not replace a live Atlas/browser smoke test; do not use irreplaceable real records for destructive testing.
+
+## Deploy to Vercel — one project, no Render
+
+This repository includes a Vercel Function for Express at `api/index.ts`, and a
+`vercel.json` that builds React and routes `/api/*` to that function.
+Local development (`npm run dev`) is unchanged.
+
+1. Open https://vercel.com/new and import `dhruvintejani/personel_software`.
+2. Set **Root Directory** to the **repository root** (leave blank; do not choose `client` or `server`).
+3. The tracked `vercel.json` supplies the Vite framework, build command
+   `npm run build -w client` and output directory `client/dist`.
+4. Under **Environment Variables**, add `MONGODB_URI` to Production (and Preview only if previews need database access).
+   Paste your **rotated** Atlas URI, for example:
+   `mongodb+srv://USER:URL_ENCODED_PASSWORD@YOUR_CLUSTER.mongodb.net/personal_entry`.
+   Do **not** add `VITE_MONGODB_URI` or a frontend API URL, and do not need `PORT`.
+   `NODE_ENV=production` is optional; Vercel automatically supplies `VERCEL`.
+5. **Before using real data**, open **Project → Security → Deployment Protection**
+   and require **Vercel Authentication on All Deployments** (including production).
+   The software has deliberately **no application login**; without project-level
+   protection, anyone on the internet could read/change/delete your records.
+6. Deploy, then visit `https://YOUR_PROJECT.vercel.app/api/health`.
+   `{"ok":true}` confirms the function connected to Atlas. If it is false,
+   check Vercel Runtime Logs, Atlas Database Access and Atlas Network Access.
+7. Visit the deployment root, create a disposable test name and entry, refresh,
+   edit and delete it, and verify persistence.
+
+**Atlas network access:** Vercel Functions may not have a stable outbound IP.
+If Atlas restricts connections to only your home IP, the deployed API cannot
+connect. Use a secure, supported static-egress setup for IP allowlisting where
+possible. Broad `0.0.0.0/0` Atlas access is less restrictive and must not be
+confused with protecting your application: keep strong credentials and project
+deployment protection enabled.
+
+Never commit `server/.env`; it is only for local runs. Vercel uses its secure
+project environment settings instead. No database schema migration is required.

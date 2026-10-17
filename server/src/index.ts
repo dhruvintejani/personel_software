@@ -62,14 +62,25 @@ app.use(express.json({ limit: '32kb' }));
 const wrap = (handler: (req: Request, res: Response) => Promise<void>) =>
   (req: Request, res: Response, next: NextFunction) => Promise.resolve(handler(req, res)).catch(next);
 
-app.get('/api/health', (_req, res) => {
+app.get('/api/health', wrap(async (_req, res) => {
+  // Vercel Functions are cold-started; initialize MongoDB on first request.
+  if (process.env.VERCEL && mongoose.connection.readyState !== 1) {
+    try { await ensureMongoConnected(); }
+    catch { res.json({ ok: false }); return; }
+  }
   res.json({ ok: mongoose.connection.readyState === 1 });
-});
+}));
 
 // Keep the API responsive while MongoDB is unavailable, rather than timing out
 // every request or causing an opaque Vite proxy error during setup.
-app.use('/api', (_req, res, next) => {
-  if (mongoose.connection.readyState !== 1) {
+app.use('/api', async (_req, res, next) => {
+  if (process.env.VERCEL) {
+    try { await ensureMongoConnected(); }
+    catch {
+      res.status(503).json({ error: 'Database unavailable. Check Vercel MONGODB_URI and Atlas Network Access.' });
+      return;
+    }
+  } else if (mongoose.connection.readyState !== 1) {
     res.status(503).json({ error: 'Database unavailable. Check server/.env, MongoDB Atlas credentials and Network Access.' });
     return;
   }
@@ -147,7 +158,7 @@ app.use('/api', (_req, res) => res.status(404).json({ error: 'API endpoint not f
 // The production Node server serves both the React app and the API on one origin.
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const clientDist = resolve(currentDir, '../../client/dist');
-if (existsSync(resolve(clientDist, 'index.html'))) {
+if (!process.env.VERCEL && existsSync(resolve(clientDist, 'index.html'))) {
   app.use(express.static(clientDist, { maxAge: '7d', index: false }));
   app.get('*', (_req, res) => res.sendFile(resolve(clientDist, 'index.html')));
 }
@@ -172,6 +183,17 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 // Switch DNS only if the user's default resolver refuses Atlas SRV requests.
 let publicDnsFallbackUsed = false;
 let networkHelpShown = false;
+
+// Reuse one connection attempt across simultaneous Vercel Function requests.
+let connectPromise: Promise<void> | null = null;
+async function ensureMongoConnected(): Promise<void> {
+  if (mongoose.connection.readyState === 1) return;
+  if (!connectPromise) {
+    connectPromise = connectMongo().finally(() => { connectPromise = null; });
+  }
+  await connectPromise;
+  if (mongoose.connection.readyState !== 1) throw new Error('MongoDB unavailable');
+}
 
 async function connectMongo(): Promise<void> {
   const uri = process.env.MONGODB_URI?.trim();
@@ -216,6 +238,9 @@ async function connectMongo(): Promise<void> {
       console.error('[api] You can also copy the Standard (mongodb://) driver URI from MongoDB Atlas to avoid SRV lookups.');
       console.error('[api] Keep the URI only in server/.env, never in GitHub.');
     }
+    // Vercel Functions should not schedule background reconnect timers.
+    // A later request will retry after an unsuccessful attempt.
+    if (process.env.VERCEL) throw error;
     console.error('[api] Will retry database connection in 15 seconds.');
     setTimeout(() => void connectMongo(), 15000).unref();
   }
@@ -227,7 +252,12 @@ const port = Number(process.env.PORT || 4000);
 if (!Number.isInteger(port) || port < 1 || port > 65535) {
   throw new Error('PORT must be a valid TCP port number');
 }
-app.listen(port, '0.0.0.0', () => {
-  console.log(`[api] Listening on http://localhost:${port}`);
-  void connectMongo();
-});
+if (!process.env.VERCEL) {
+  app.listen(port, '0.0.0.0', () => {
+    console.log(`[api] Listening on http://localhost:${port}`);
+    void connectMongo();
+  });
+}
+
+// Vercel Functions import this app; local development still uses app.listen.
+export default app;
