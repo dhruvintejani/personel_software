@@ -7,7 +7,7 @@ A fast, **mobile-first, Gujarati/English personal entry ledger** built with Reac
 - **Two separate sections:** Buta (બુટા) and Top (ટોપ), with independent name lists and entries.
 - Search names instantly on **both** pages, and open the search icon to find entry titles, quantities and amounts within a selected name.
 - Add, rename and remove names; selecting a name opens its ledger.
-- Today's **local** date selected by default; change it to view or add entries on any date.
+- Today's **local** date selected by default; change it to view or add entries on any date. Slow entry creation will not mix records across dates.
 - Unlimited entries per day, displayed as compact cards on mobile and a roomy responsive layout on desktop.
 - Each entry has an optional title, quantity, editable rate, completion checkbox and automatic total.
 - **No separate "into" input**: `quantity × price = row total`. Buta defaults to **₹0.16** and Top to **₹0.40**; changing one row's price never affects other rows.
@@ -52,7 +52,16 @@ A fast, **mobile-first, Gujarati/English personal entry ledger** built with Reac
    npm run dev
    ```
 
-5. Open **http://localhost:5173** on your computer. The Vite dev server proxies `/api` requests to Express at port 4000.
+5. Test **http://localhost:4000/api/health** first. `{"ok":true}` means the backend has connected to MongoDB; `{"ok":false}` means the backend is running, but the database has not connected yet. Check the terminal for `[api]` messages.
+6. Open **http://localhost:5173** on your computer. The Vite dev server proxies `/api` requests to Express at port 4000.
+
+### If you see a Vite proxy error or a blank name list
+
+- Ensure you run `npm run dev` from the repository root, so **both** web and API processes start.
+- The API explicitly loads **server/.env**, even when launched from a different directory. Make sure `MONGODB_URI` is correctly filled in, including your Atlas password and database name; restart the dev command if you change it.
+- Open **http://localhost:4000/api/health**. If it does not respond, inspect the `[api]` terminal output; if it says `{"ok":false}`, verify database-user permissions and Atlas Network Access. API requests receive a helpful HTTP 503 until MongoDB is ready.
+- The frontend proxy is fixed at `127.0.0.1:4000`; if you customize `PORT`, adjust `client/vite.config.ts` to match. Do not paste the private database URL into chat, the frontend, or GitHub.
+
 
 ### Using it on your phone during development
 
@@ -117,3 +126,7 @@ Every entry belongs to one name, and every name belongs to either Buta or Top. M
 2. Run `npm install`, then `npm run check`, `npm test`, and `npm run build`.
 3. Test create/edit/delete, date switching, search, completion checkboxes and desktop/mobile layouts with the live MongoDB service.
 4. Host privately, as there is no authentication.
+
+## Repository privacy
+
+This repository is currently **public**. Do not commit real data, secrets, or `server/.env`. Because the software deliberately has no user login, use a private network, VPN, or a hosting-level access gateway before exposing a live deployment to the internet. GitHub repository privacy alone will not restrict access to a deployed application.

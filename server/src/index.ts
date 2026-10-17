@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import { config as loadEnv } from 'dotenv';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import helmet from 'helmet';
 import mongoose, { Schema, Types } from 'mongoose';
@@ -7,6 +7,10 @@ import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isValidDateString } from './math.js';
+
+// Resolve server/.env independently of the directory from which npm is launched.
+// This works when executing server/src in development and server/dist in production.
+loadEnv({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../.env') });
 
 const nameSchema = new Schema({
   section: { type: String, enum: ['buta', 'top'], required: true },
@@ -57,6 +61,16 @@ const wrap = (handler: (req: Request, res: Response) => Promise<void>) =>
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: mongoose.connection.readyState === 1 });
+});
+
+// Keep the API responsive while MongoDB is unavailable, rather than timing out
+// every request or causing an opaque Vite proxy error during setup.
+app.use('/api', (_req, res, next) => {
+  if (mongoose.connection.readyState !== 1) {
+    res.status(503).json({ error: 'Database unavailable. Check server/.env, MongoDB Atlas credentials and Network Access.' });
+    return;
+  }
+  next();
 });
 
 app.get('/api/names', wrap(async (req, res) => {
@@ -149,15 +163,30 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: 'An unexpected server error occurred' });
 });
 
-async function start() {
-  const uri = process.env.MONGODB_URI;
+async function connectMongo(): Promise<void> {
+  const uri = process.env.MONGODB_URI?.trim();
   if (!uri) {
-    console.error('Missing MONGODB_URI. Copy server/.env.example to server/.env and add your MongoDB connection string.');
-    process.exitCode = 1;
+    console.error('[api] Missing MONGODB_URI. Create server/.env (see server/.env.example) and restart npm run dev.');
     return;
   }
-  await mongoose.connect(uri, { serverSelectionTimeoutMS: 12000, maxPoolSize: 10 });
-  const port = Number(process.env.PORT || 4000);
-  app.listen(port, '0.0.0.0', () => console.log(`Personal Entry Software: http://localhost:${port}`));
+  try {
+    await mongoose.connect(uri, { serverSelectionTimeoutMS: 12000, maxPoolSize: 10 });
+    console.log('[api] MongoDB connected');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[api] MongoDB connection failed:', message);
+    console.error('[api] Will retry database connection in 15 seconds.');
+    setTimeout(() => void connectMongo(), 15000).unref();
+  }
 }
-start().catch(err => { console.error('Unable to start:', err); process.exitCode = 1; });
+
+// Listen immediately so Vite can reach the API even if Atlas is offline.
+// All database routes return HTTP 503 until MongoDB becomes available.
+const port = Number(process.env.PORT || 4000);
+if (!Number.isInteger(port) || port < 1 || port > 65535) {
+  throw new Error('PORT must be a valid TCP port number');
+}
+app.listen(port, '0.0.0.0', () => {
+  console.log(`[api] Listening on http://localhost:${port}`);
+  void connectMongo();
+});

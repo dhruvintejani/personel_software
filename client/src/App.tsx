@@ -16,6 +16,7 @@ export default function App() {
   const [people, setPeople] = useState<Person[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
   const [error, setError] = useState('');
   const [form, setForm] = useState<{ mode: 'add' | 'edit'; id?: string } | null>(null);
   const [nameValue, setNameValue] = useState('');
@@ -31,7 +32,7 @@ export default function App() {
     return () => { live = false; };
   // Error is translated on the next action; don't refetch just for language changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section]);
+  }, [section, reloadKey]);
 
   const switchSection = (next: Section) => {
     if (next === section) { setSelected(null); return; }
@@ -116,7 +117,7 @@ export default function App() {
 
         <main className="mx-auto max-w-[1100px] px-3 pb-9 pt-5 sm:px-7 sm:pt-7 md:pt-10">
           {error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-            <span>{error}</span><button aria-label={t(lang,'close')} onClick={()=>setError('')}><X size={18}/></button>
+            <span>{error}</span><div className="flex shrink-0 items-center gap-1"><button className="rounded-lg px-2 py-1 text-xs font-semibold underline" onClick={()=>setReloadKey(old=>old+1)}>{t(lang,'retry')}</button><button aria-label={t(lang,'close')} onClick={()=>setError('')}><X size={18}/></button></div>
           </div>}
           {selected ? <NameLedger key={selected._id} lang={lang} section={section} person={selected} /> : <>
             <div className="mb-5 flex items-start justify-between gap-3">

@@ -12,6 +12,8 @@ type Filter = 'all' | 'pending' | 'done';
 
 export default function NameLedger({ lang, section, person }: Props) {
   const [date, setDate] = useState(localToday);
+  const activeDate = useRef(date);
+  activeDate.current = date;
   const [rows, setRows] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -91,12 +93,16 @@ export default function NameLedger({ lang, section, person }: Props) {
     if (creating) return;
     setCreating(true); setError('');
     try {
+      const entryDate = date;
       const created = await api.addEntry(person._id, {
-        date, title: '', quantity: 0, price: section === 'buta' ? 0.16 : 0.40, completed: false,
+        date: entryDate, title: '', quantity: 0, price: section === 'buta' ? 0.16 : 0.40, completed: false,
       });
-      setRows(old => [created, ...old]);
-      setFilter('all'); setSearch('');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      // A slow save must not add an old-date entry to a newly selected day.
+      if (activeDate.current === entryDate) {
+        setRows(old => [created, ...old]);
+        setFilter('all'); setSearch('');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     } catch { setError(t(lang, 'genericError')); }
     finally { setCreating(false); }
   };
@@ -132,8 +138,7 @@ export default function NameLedger({ lang, section, person }: Props) {
   return <div className="pb-[94px] md:pb-2">
     <div className="mb-4 flex items-start justify-between gap-3 sm:mb-6">
       <div className="min-w-0">
-        <h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">{person.name}</h1>
-        <div className="mt-1 flex items-center gap-1.5 text-xs text-muted"><ClipboardList size={14}/>{section === 'buta' ? t(lang,'buta') : t(lang,'top')} · {rows.length} {t(lang,'itemCount')}</div>
+        <div className="flex items-center gap-1.5 text-xs font-medium text-muted"><ClipboardList size={14}/>{section === 'buta' ? t(lang,'buta') : t(lang,'top')} · {rows.length} {t(lang,'itemCount')}</div>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
         <button className="icon-button" type="button" aria-label={t(lang,'searchEntries')} aria-expanded={showSearch} onClick={()=>{setShowSearch(v=>!v);if(showSearch){setSearch('');setFilter('all');}}}><Search size={20}/></button>
