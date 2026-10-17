@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "description": "Bilingual mobile-first Buta and Top personal entry ledger",
-  "workspaces": ["client", "server"],
+  "workspaces": [
+    "client",
+    "server"
+  ],
   "scripts": {
     "dev": "concurrently -k -n api,web -c cyan,green \"npm run dev -w server\" \"npm run dev -w client\"",
     "build": "npm run build -w client && npm run build -w server",
@@ -11,6 +14,11 @@
     "check": "npm run check -w client && npm run check -w server",
     "test": "npm run test -w server"
   },
-  "devDependencies": {"concurrently": "^9.1.2"},
-  "engines": {"node": ">=20.19.0"}
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "type": "module"
 }

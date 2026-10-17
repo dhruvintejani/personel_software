@@ -27,3 +27,5 @@ jobs:
         run: npm test
       - name: Build client and API
         run: npm run build
+      - name: Smoke-test Vercel Function import
+        run: VERCEL=1 node --input-type=module -e "const m = await import('./api/index.ts'); if (typeof m.default !== 'function') process.exit(1); console.log('Vercel Express entry point loads successfully');"

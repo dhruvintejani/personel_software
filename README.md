@@ -83,7 +83,9 @@ Local development (`npm run dev`) is unchanged.
 1. Open https://vercel.com/new and import `dhruvintejani/personel_software`.
 2. Set **Root Directory** to the **repository root** (leave blank; do not choose `client` or `server`).
 3. The tracked `vercel.json` supplies the Vite framework, build command
-   `npm run build -w client` and output directory `client/dist`.
+   `npm run build` (**both client and backend**) and output directory `client/dist`.
+   Vercel's `api/index.ts` imports compiled `server/dist/index.js`, not a
+   nonexistent JavaScript file from `server/src`.
 4. Under **Environment Variables**, add `MONGODB_URI` to Production (and Preview only if previews need database access).
    Paste your **rotated** Atlas URI, for example:
    `mongodb+srv://USER:URL_ENCODED_PASSWORD@YOUR_CLUSTER.mongodb.net/personal_entry`.
