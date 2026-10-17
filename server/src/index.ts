@@ -187,12 +187,15 @@ let networkHelpShown = false;
 // Reuse one connection attempt across simultaneous Vercel Function requests.
 let connectPromise: Promise<void> | null = null;
 async function ensureMongoConnected(): Promise<void> {
-  if (mongoose.connection.readyState === 1) return;
+  // Re-read connection state after awaiting: TypeScript otherwise keeps its
+  // pre-await narrowed enum, even though mongoose.connect changes the state.
+  const connected = () => mongoose.connection.readyState === 1;
+  if (connected()) return;
   if (!connectPromise) {
     connectPromise = connectMongo().finally(() => { connectPromise = null; });
   }
   await connectPromise;
-  if (mongoose.connection.readyState !== 1) throw new Error('MongoDB unavailable');
+  if (!connected()) throw new Error('MongoDB unavailable');
 }
 
 async function connectMongo(): Promise<void> {
