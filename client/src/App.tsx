@@ -50,6 +50,7 @@ export default function App() {
   }, [section, reloadKey]);
 
   const switchSection = (next: Section) => {
+    if (busy) return; // Do not switch ledgers while a name edit/delete is saving.
     if (next === section) { setSelected(null); return; }
     setSection(next); setSelected(null); setSearch(''); setForm(null); setPeople([]);
   };
@@ -94,7 +95,7 @@ export default function App() {
   };
 
   const nav = (item: Section, mobile = false) => (
-    <button key={item} type="button" onClick={() => switchSection(item)}
+    <button key={item} type="button" disabled={busy} onClick={() => switchSection(item)}
       aria-current={section === item ? 'page' : undefined}
       className={mobile
         ? `flex min-h-[55px] flex-1 flex-col items-center justify-center gap-0.5 rounded-xl text-xs font-semibold ${section === item ? 'text-brand bg-accent/50' : 'text-muted'}`

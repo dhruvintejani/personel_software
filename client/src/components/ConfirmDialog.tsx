@@ -15,15 +15,19 @@ type Props = {
 export default function ConfirmDialog({ title, message, confirmLabel, cancelLabel, busy, onConfirm, onCancel }: Props) {
   const cancelRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const cancelAction = useRef(onCancel);
+  const busyNow = useRef(busy);
+  cancelAction.current = onCancel;
+  busyNow.current = busy;
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const oldOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     cancelRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !busy) {
+      if (event.key === 'Escape' && !busyNow.current) {
         event.preventDefault();
-        onCancel();
+        cancelAction.current();
       }
       if (event.key === 'Tab') {
         const items = Array.from(dialogRef.current?.querySelectorAll<HTMLButtonElement>('button:not([disabled])') ?? []);
@@ -39,7 +43,7 @@ export default function ConfirmDialog({ title, message, confirmLabel, cancelLabe
       document.body.style.overflow = oldOverflow;
       previous?.focus();
     };
-  }, [busy, onCancel]);
+  }, []);
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-4" onMouseDown={event => { if (event.target === event.currentTarget && !busy) onCancel(); }}>

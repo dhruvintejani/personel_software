@@ -141,6 +141,9 @@ app.delete('/api/entries/:id', wrap(async (req, res) => {
   res.status(204).end();
 }));
 
+// Always answer unknown API routes with JSON, including in production.
+app.use('/api', (_req, res) => res.status(404).json({ error: 'API endpoint not found' }));
+
 // The production Node server serves both the React app and the API on one origin.
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const clientDist = resolve(currentDir, '../../client/dist');

@@ -13,6 +13,8 @@ Mobile-first Gujarati/English personal ledger built with React, TypeScript, Tail
 - Each entry has an optional title, quantity, price, date and completion checkbox.
 - **Grand total includes every entry for that name**, regardless of date or completion.
 - Edit/Delete actions are always visible; delete uses an in-app confirmation modal.
+- If database loading fails, the ledger shows an error and **Retry** rather than falsely claiming the customer has no entries.
+- Checkbox saves are serialized per entry; modal edits and deletes wait for a pending checkbox save to finish.
 - A small success toast appears for **1.8 seconds** after confirmed save/delete/checkbox changes. No flickering permanent "Saved" status.
 - Desktop displays one full-width ledger row per entry; mobile uses compact touch-friendly rows, no horizontal scrolling.
 - Desktop sidebar stays stationary while the page scrolls.

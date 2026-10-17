@@ -13,6 +13,8 @@ type Props = { lang: Language; section: Section; person: Person; notify: (messag
 export default function NameLedger({ lang, section, person, notify }: Props) {
   const [rows, setRows] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [error, setError] = useState('');
   const [form, setForm] = useState<{ mode: 'add' } | { mode: 'edit'; entry: Entry } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Entry | null>(null);
@@ -22,28 +24,39 @@ export default function NameLedger({ lang, section, person, notify }: Props) {
   const pendingCheckbox = useRef(new Map<string, boolean>());
   const confirmedCheckbox = useRef(new Map<string, boolean>());
   const writingCheckbox = useRef(new Set<string>());
+  // Keep the active Promise so editing/deleting can wait for checkbox writes.
+  const checkboxWrites = useRef(new Map<string, Promise<void>>());
 
   useEffect(() => {
     let active = true;
-    setLoading(true); setError('');
+    setLoading(true); setLoadFailed(false); setError('');
     void api.getEntries(person._id)
-      .then(data => { if (active) setRows(data); })
-      .catch(() => { if (active) setError(t(lang,'loadError')); })
+      .then(data => {
+        if (active) {
+          setRows(data);
+          confirmedCheckbox.current = new Map(data.map(entry => [entry._id, entry.completed]));
+        }
+      })
+      .catch(() => { if (active) { setLoadFailed(true); setError(t(lang,'loadError')); } })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   // Fetch only when a different person is selected.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [person._id]);
+  }, [person._id, reloadKey]);
 
   const total = useMemo(() => rows.reduce((sum,row)=>sum+rowAmount(row),0),[rows]);
 
   const saveEntry = async (data: EntryFormValues) => {
     if (form?.mode === 'edit') {
+      // An in-flight checkbox save must finish before the full modal edit.
+      await checkboxWrites.current.get(form.entry._id);
       const result = await api.patchEntry(form.entry._id, data);
+      confirmedCheckbox.current.set(result._id, result.completed);
       setRows(old=>old.map(row=>row._id===result._id?result:row));
       notify(t(lang,'entryUpdated'));
     } else {
       const created = await api.addEntry(person._id, data);
+      confirmedCheckbox.current.set(created._id, created.completed);
       setRows(old=>[created,...old]);
       notify(t(lang,'entryAdded'));
     }
@@ -51,9 +64,11 @@ export default function NameLedger({ lang, section, person, notify }: Props) {
     setError('');
   };
 
-  const saveCheckbox = useCallback(async (id: string) => {
-    if (writingCheckbox.current.has(id)) return;
+  const saveCheckbox = useCallback((id: string): Promise<void> => {
+    const existing = checkboxWrites.current.get(id);
+    if (existing) return existing;
     writingCheckbox.current.add(id);
+    const work = (async () => {
     let savedAtLeastOnce = false;
     try {
       // Serial requests prevent a slower response from overwriting a newer click.
@@ -66,7 +81,10 @@ export default function NameLedger({ lang, section, person, notify }: Props) {
       }
       // Keep the optimistic UI as-is. Replacing the complete MongoDB document
       // here caused a second render/flicker every time a checkbox was clicked.
-      if (savedAtLeastOnce) notify(t(lang, 'entryUpdated'));
+      if (savedAtLeastOnce) {
+        setError('');
+        notify(t(lang, 'entryUpdated'));
+      }
     } catch {
       pendingCheckbox.current.delete(id);
       const lastSaved = confirmedCheckbox.current.get(id);
@@ -75,10 +93,15 @@ export default function NameLedger({ lang, section, person, notify }: Props) {
           ? { ...row, completed: lastSaved } : row));
       }
       setError(t(lang, 'saveError'));
-    } finally {
-      writingCheckbox.current.delete(id);
-      if (pendingCheckbox.current.has(id)) void saveCheckbox(id);
     }
+    })();
+    checkboxWrites.current.set(id, work);
+    void work.finally(() => {
+      writingCheckbox.current.delete(id);
+      checkboxWrites.current.delete(id);
+      if (pendingCheckbox.current.has(id)) void saveCheckbox(id);
+    });
+    return work;
   }, [lang, notify]);
 
   const toggleDone = useCallback((entry: Entry, value: boolean) => {
@@ -100,7 +123,11 @@ export default function NameLedger({ lang, section, person, notify }: Props) {
     if (!entry || deleting) return;
     setDeleting(true);
     try {
+      // Prevent a pending checkbox PATCH from racing a DELETE of the same entry.
+      await checkboxWrites.current.get(entry._id);
       await api.deleteEntry(entry._id);
+      pendingCheckbox.current.delete(entry._id);
+      confirmedCheckbox.current.delete(entry._id);
       setRows(old=>old.filter(r=>r._id!==entry._id));
       setDeleteTarget(null);
       notify(t(lang,'entryDeleted'));
@@ -113,12 +140,14 @@ export default function NameLedger({ lang, section, person, notify }: Props) {
       <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted">
         <ClipboardList size={15}/>{section === 'buta' ? t(lang,'buta') : t(lang,'top')} · {rows.length} {t(lang,'itemCount')}
       </div>
-      <button className="btn-primary shrink-0" disabled={loading} onClick={()=>setForm({mode:'add'})}>
+      <button className="btn-primary shrink-0" disabled={loading || loadFailed} onClick={()=>setForm({mode:'add'})}>
         <Plus size={18}/>{t(lang,'addEntry')}
       </button>
     </div>
     {error && <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700">{error}</div>}
+    {loadFailed && <button type="button" className="btn-secondary mb-4" onClick={()=>setReloadKey(old=>old+1)}>{t(lang,'retry')}</button>}
     {loading ? <div className="rounded-xl border border-line bg-white p-10 text-center text-sm text-muted">{t(lang,'loading')}</div>
+      : loadFailed ? null
       : rows.length === 0 ? <div className="rounded-2xl border border-dashed border-line bg-white px-4 py-14 text-center">
         <ClipboardList size={32} className="mx-auto mb-3 text-slate-300"/>
         <p className="font-semibold">{t(lang,'noEntries')}</p>
@@ -131,16 +160,16 @@ export default function NameLedger({ lang, section, person, notify }: Props) {
         {rows.map((row,index)=><EntryRow key={row._id} entry={row} index={index} lang={lang}
           onToggle={toggleDone} onEdit={editRow} onDelete={requestDelete}/>)}
       </div>}
-    {rows.length>0 && <button type="button" className="btn-secondary mt-4 w-full border-dashed" onClick={()=>setForm({mode:'add'})}>
+    {!loadFailed && rows.length>0 && <button type="button" className="btn-secondary mt-4 w-full border-dashed" onClick={()=>setForm({mode:'add'})}>
       <Plus size={18}/>{t(lang,'addEntry')}
     </button>}
-    <div className="safe-bottom fixed bottom-[calc(69px+env(safe-area-inset-bottom))] left-0 right-0 z-20 border-t border-line bg-white/95 px-4 py-3 shadow-[0_-3px_15px_rgba(22,37,55,.05)] backdrop-blur-sm md:sticky md:bottom-0 md:mt-5 md:rounded-2xl md:border md:shadow-soft">
+    {!loadFailed && <div className="safe-bottom fixed bottom-[calc(69px+env(safe-area-inset-bottom))] left-0 right-0 z-20 border-t border-line bg-white/95 px-4 py-3 shadow-[0_-3px_15px_rgba(22,37,55,.05)] backdrop-blur-sm md:sticky md:bottom-0 md:mt-5 md:rounded-2xl md:border md:shadow-soft">
       <div className="mx-auto flex max-w-[1100px] items-center justify-between gap-2">
         <div className="min-w-0"><p className="text-xs font-semibold text-muted">{t(lang,'grandTotal')}</p>
           <p className="text-xs text-muted">{rows.length} {t(lang,'itemCount')}</p></div>
         <div className="truncate text-right text-xl font-bold tabular-nums text-brand sm:text-2xl">{formattedRupees(total)}</div>
       </div>
-    </div>
+    </div>}
     {form && <EntryFormModal key={form.mode==='add'?'new':form.entry._id} lang={lang} section={section}
       entry={form.mode==='edit'?form.entry:undefined} onSave={saveEntry} onClose={()=>setForm(null)}/>}
     {deleteTarget && <ConfirmDialog title={t(lang,'removeEntry')} message={t(lang,'confirmDeleteEntry')}
