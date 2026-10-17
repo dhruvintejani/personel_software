@@ -58,6 +58,18 @@ A fast, **mobile-first, Gujarati/English personal entry ledger** built with Reac
 5. Test **http://localhost:4000/api/health** first. `{"ok":true}` means the backend has connected to MongoDB; `{"ok":false}` means the backend is running, but the database has not connected yet. Check the terminal for `[api]` messages.
 6. Open **http://localhost:5173** on your computer. The Vite dev server proxies `/api` requests to Express at port 4000.
 
+### If you see `querySrv ECONNREFUSED` connecting to MongoDB Atlas
+
+This error is an **SRV DNS lookup failure**, not a malformed MongoDB URI or an incorrect password. The Node backend first uses your configured DNS. If it refuses the lookup, the backend automatically retries with Cloudflare/Google public DNS (1.1.1.1, 8.8.8.8). You need only your existing `server/.env` file; no DNS-related environment variables are needed.
+
+If the public DNS fallback also fails, this is a Windows/ISP/firewall/network problem the application cannot bypass. In PowerShell, check:
+
+```powershell
+nslookup -type=SRV _mongodb._tcp.YOUR_CLUSTER.mongodb.net 8.8.8.8
+```
+
+Try a mobile hotspot, or set your Windows network adapter DNS to 1.1.1.1 (preferred) and 8.8.8.8 (alternate), then run `ipconfig /flushdns` and restart. If DNS requests are blocked by the network, select the **Standard (mongodb://)** connection string in MongoDB Atlas → Connect → Drivers (when offered); copy the *complete* host/port list and TLS/replica-set options supplied by Atlas. Do not simply replace `mongodb+srv://` with `mongodb://` in your existing URI. Keep secrets private.
+
 ### If you see a Vite proxy error or a blank name list
 
 - Ensure you run `npm run dev` from the repository root, so **both** web and API processes start.

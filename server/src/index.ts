@@ -1,4 +1,5 @@
 import { config as loadEnv } from 'dotenv';
+import { setServers } from 'node:dns/promises';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import helmet from 'helmet';
 import mongoose, { Schema, Types } from 'mongoose';
@@ -7,7 +8,7 @@ import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isValidDateString } from './math.js';
-import { isMongoUri } from './mongoUri.js';
+import { isMongoUri, isSrvDnsLookupFailure } from './mongoUri.js';
 
 // Resolve server/.env independently of the directory from which npm is launched.
 // This works when executing server/src in development and server/dist in production.
@@ -164,6 +165,10 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: 'An unexpected server error occurred' });
 });
 
+// Switch DNS only if the user's default resolver refuses Atlas SRV requests.
+let publicDnsFallbackUsed = false;
+let networkHelpShown = false;
+
 async function connectMongo(): Promise<void> {
   const uri = process.env.MONGODB_URI?.trim();
   if (!uri) {
@@ -183,7 +188,30 @@ async function connectMongo(): Promise<void> {
     console.log('[api] MongoDB connected');
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error('[api] MongoDB connection failed:', message);
+    // Avoid exposing database credentials in logs, even for unusual driver errors.
+    console.error('[api] MongoDB connection failed:', message.replaceAll(uri, '[MongoDB URI hidden]'));
+
+    if (uri.startsWith('mongodb+srv://') && !publicDnsFallbackUsed && isSrvDnsLookupFailure(error)) {
+      try {
+        // Node's MongoDB driver uses dns.promises.resolveSrv and resolveTxt.
+        // Public resolvers can bypass broken Windows/ISP DNS SRV resolution.
+        setServers(['1.1.1.1', '8.8.8.8']);
+        publicDnsFallbackUsed = true;
+        console.info('[api] DNS SRV lookup refused. Retrying with Cloudflare/Google DNS...');
+        await connectMongo();
+        return;
+      } catch (dnsError) {
+        console.error('[api] Unable to configure DNS fallback:', dnsError instanceof Error ? dnsError.message : 'Unknown error');
+      }
+    }
+
+    if (isSrvDnsLookupFailure(error) && !networkHelpShown) {
+      networkHelpShown = true;
+      console.error('[api] Atlas DNS SRV lookups are failing on this network.');
+      console.error('[api] Try another network / mobile hotspot, or change Windows DNS to 1.1.1.1 and 8.8.8.8.');
+      console.error('[api] You can also copy the Standard (mongodb://) driver URI from MongoDB Atlas to avoid SRV lookups.');
+      console.error('[api] Keep the URI only in server/.env, never in GitHub.');
+    }
     console.error('[api] Will retry database connection in 15 seconds.');
     setTimeout(() => void connectMongo(), 15000).unref();
   }
