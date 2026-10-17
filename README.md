@@ -58,3 +58,18 @@ The backend serves the compiled frontend and API on the same origin in productio
 ## Important security note
 
 This app deliberately has **no login**. Do not expose its API publicly without restricting access at the network/hosting level; anyone who can open a public deployment could read, edit or delete your data. A private repository does not protect a public deployment. Use a trusted VPN/network gateway if you need remote access. **Never upload `server/.env` to GitHub.**
+
+## Quick manual regression checklist
+
+After pulling changes and connecting to Atlas (`/api/health` returns `{"ok":true}`), run these checks with test data:
+
+1. Create two distinct customer names in Buta and Top; search names in each section and verify they remain separate.
+2. Open a customer, add entries with quantities and default rates (Buta ₹0.16, Top ₹0.40), and confirm the row and grand totals.
+3. Edit an entry's title, date, quantity, rate and completion status; check that **Cancel** does not save and **Save** does.
+4. Rapidly toggle one completion checkbox and verify unrelated rows do not flicker or change; refresh to confirm persistence.
+5. Verify rows from different dates appear in the same customer ledger without a date filter; grand total covers all.
+6. Check Delete → Cancel leaves everything unchanged. Delete one entry, and verify its total disappears. Delete a test customer and verify it no longer appears.
+7. Test narrow mobile width (around 360px) and desktop; the desktop sidebar must stay stationary while scrolling.
+8. Verify success toasts vanish after about 1.8 seconds and that API outages show an error/retry rather than an empty ledger.
+
+Unit tests/builds do not replace a live Atlas/browser smoke test; do not use irreplaceable real records for destructive testing.
