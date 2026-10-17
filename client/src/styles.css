@@ -16,7 +16,6 @@ input[type='date'] { color-scheme: light; }
 .btn-primary { @apply inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#12364b] disabled:opacity-50; min-height: 44px; }
 .btn-secondary { @apply inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-slate-50 disabled:opacity-50; min-height: 44px; }
 .icon-button { @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted hover:bg-slate-100 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand; }
-.entry-card { content-visibility: auto; contain-intrinsic-size: auto 135px; }
-.entry-card:focus-within { content-visibility: visible; }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-@media (min-width: 768px) { .entry-card { content-visibility: visible; } }
+/* Avoid content-visibility:auto on interactive rows: browser repaint/skip behavior
+   can make nearby checkboxes appear to blink during React state updates. */

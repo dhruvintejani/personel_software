@@ -8,15 +8,14 @@ type Props = {
   entry: Entry;
   index: number;
   lang: Language;
-  toggling: boolean;
   onToggle: (entry: Entry, next: boolean) => void;
   onEdit: (entry: Entry) => void;
   onDelete: (entry: Entry) => void;
 };
 
-function EntryRow({ entry, index, lang, toggling, onToggle, onEdit, onDelete }: Props) {
+function EntryRow({ entry, index, lang, onToggle, onEdit, onDelete }: Props) {
   const check = <label className="inline-flex min-h-10 items-center justify-center gap-1.5 text-xs font-semibold text-muted">
-    <input type="checkbox" disabled={toggling} checked={entry.completed}
+    <input type="checkbox" checked={entry.completed}
       onChange={e=>onToggle(entry,e.target.checked)} className="h-5 w-5 accent-brand"
       aria-label={`${t(lang,'entry')} ${index+1} ${t(lang,'complete')}`}/>
     <span className="sr-only">{t(lang,'done')}</span>

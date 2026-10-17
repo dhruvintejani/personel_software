@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ClipboardList, Plus } from 'lucide-react';
 import { api } from '../lib/api';
 import { t } from '../lib/i18n';
@@ -17,7 +17,11 @@ export default function NameLedger({ lang, section, person, notify }: Props) {
   const [form, setForm] = useState<{ mode: 'add' } | { mode: 'edit'; entry: Entry } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Entry | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [toggling, setToggling] = useState<string | null>(null);
+  // Keep checkbox saves isolated by entry ID. A network request for one row must
+  // never disable, remount or update the other rows.
+  const pendingCheckbox = useRef(new Map<string, boolean>());
+  const confirmedCheckbox = useRef(new Map<string, boolean>());
+  const writingCheckbox = useRef(new Set<string>());
 
   useEffect(() => {
     let active = true;
@@ -47,19 +51,49 @@ export default function NameLedger({ lang, section, person, notify }: Props) {
     setError('');
   };
 
-  const toggleDone = async (entry: Entry, value: boolean) => {
-    if (toggling !== null) return;
-    setToggling(entry._id);
-    setRows(old=>old.map(r=>r._id===entry._id?{...r,completed:value}:r));
+  const saveCheckbox = useCallback(async (id: string) => {
+    if (writingCheckbox.current.has(id)) return;
+    writingCheckbox.current.add(id);
+    let savedAtLeastOnce = false;
     try {
-      const result = await api.patchEntry(entry._id,{completed:value});
-      setRows(old=>old.map(r=>r._id===result._id?result:r));
-      notify(t(lang,'entryUpdated'));
+      // Serial requests prevent a slower response from overwriting a newer click.
+      while (pendingCheckbox.current.has(id)) {
+        const next = pendingCheckbox.current.get(id)!;
+        pendingCheckbox.current.delete(id);
+        await api.patchEntry(id, { completed: next });
+        confirmedCheckbox.current.set(id, next);
+        savedAtLeastOnce = true;
+      }
+      // Keep the optimistic UI as-is. Replacing the complete MongoDB document
+      // here caused a second render/flicker every time a checkbox was clicked.
+      if (savedAtLeastOnce) notify(t(lang, 'entryUpdated'));
     } catch {
-      setRows(old=>old.map(r=>r._id===entry._id?{...r,completed:entry.completed}:r));
-      setError(t(lang,'saveError'));
-    } finally { setToggling(null); }
-  };
+      pendingCheckbox.current.delete(id);
+      const lastSaved = confirmedCheckbox.current.get(id);
+      if (lastSaved !== undefined) {
+        setRows(old => old.map(row => row._id === id && row.completed !== lastSaved
+          ? { ...row, completed: lastSaved } : row));
+      }
+      setError(t(lang, 'saveError'));
+    } finally {
+      writingCheckbox.current.delete(id);
+      if (pendingCheckbox.current.has(id)) void saveCheckbox(id);
+    }
+  }, [lang, notify]);
+
+  const toggleDone = useCallback((entry: Entry, value: boolean) => {
+    if (!confirmedCheckbox.current.has(entry._id)) {
+      confirmedCheckbox.current.set(entry._id, entry.completed);
+    }
+    pendingCheckbox.current.set(entry._id, value);
+    // Preserve the identity of every unrelated entry so React.memo skips them.
+    setRows(old => old.map(row => row._id === entry._id && row.completed !== value
+      ? { ...row, completed: value } : row));
+    void saveCheckbox(entry._id);
+  }, [saveCheckbox]);
+
+  const editRow = useCallback((entry: Entry) => setForm({ mode: 'edit', entry }), []);
+  const requestDelete = useCallback((entry: Entry) => setDeleteTarget(entry), []);
 
   const deleteEntry = async () => {
     const entry = deleteTarget;
@@ -94,8 +128,8 @@ export default function NameLedger({ lang, section, person, notify }: Props) {
           <span>#</span><span>{t(lang,'titleOptional')}</span><span>{t(lang,'date')}</span><span>{t(lang,'quantity')}</span>
           <span>{t(lang,'price')}</span><span>{t(lang,'total')}</span><span>{t(lang,'done')}</span><span>{t(lang,'actions')}</span>
         </div>
-        {rows.map((row,index)=><EntryRow key={row._id} entry={row} index={index} lang={lang} toggling={toggling!==null}
-          onToggle={(entry,value)=>void toggleDone(entry,value)} onEdit={entry=>setForm({mode:'edit',entry})} onDelete={setDeleteTarget}/>)}
+        {rows.map((row,index)=><EntryRow key={row._id} entry={row} index={index} lang={lang}
+          onToggle={toggleDone} onEdit={editRow} onDelete={requestDelete}/>)}
       </div>}
     {rows.length>0 && <button type="button" className="btn-secondary mt-4 w-full border-dashed" onClick={()=>setForm({mode:'add'})}>
       <Plus size={18}/>{t(lang,'addEntry')}
