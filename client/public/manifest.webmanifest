@@ -1,0 +1,10 @@
+{
+  "name": "Personal Entry Software",
+  "short_name": "My Ledger",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f8fb",
+  "theme_color": "#ffffff",
+  "lang": "gu",
+  "icons": [{"src":"/favicon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}]
+}

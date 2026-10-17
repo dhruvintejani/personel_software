@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { font-family: Inter, 'Noto Sans Gujarati', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #162537; background: #f6f8fb; font-synthesis: none; }
+* { box-sizing: border-box; }
+html { -webkit-tap-highlight-color: transparent; }
+body { margin: 0; min-width: 320px; }
+button, input { font: inherit; }
+button { touch-action: manipulation; }
+input { min-width: 0; }
+input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
+input[type='number']::-webkit-inner-spin-button, input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type='date'] { color-scheme: light; }
+.input-base { @apply w-full rounded-xl border border-line bg-white text-ink outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand/10 placeholder:text-slate-400; font-size: 16px; }
+.btn-primary { @apply inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#12364b] disabled:opacity-50; min-height: 44px; }
+.btn-secondary { @apply inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-slate-50 disabled:opacity-50; min-height: 44px; }
+.icon-button { @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted hover:bg-slate-100 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand; }
+.entry-card { content-visibility: auto; contain-intrinsic-size: auto 150px; }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+@media (min-width: 768px) { .entry-card { content-visibility: visible; } }
