@@ -34,7 +34,7 @@ A fast, **mobile-first, Gujarati/English personal entry ledger** built with Reac
    npm install
    ```
 
-3. Create `server/.env` by copying `server/.env.example` and replace the placeholder value:
+3. Create or edit your **one local file**, `server/.env`, and put your Atlas connection string in it. You do **not** need `.env.example`:
 
    ```env
    MONGODB_URI=mongodb+srv://YOUR_USER:YOUR_PASSWORD@YOUR_CLUSTER.mongodb.net/personal_entry?retryWrites=true&w=majority
@@ -44,6 +44,9 @@ A fast, **mobile-first, Gujarati/English personal entry ledger** built with Reac
 
    - Never put your MongoDB URI in `client/` or any `VITE_` variable: frontend variables can be exposed to browsers.
    - For Atlas, create a database user and allow network access **only from your server's IP**, where possible.
+   - Keep both slashes in `mongodb+srv://`; `srv://` alone is **invalid**. Never put `MONGODB_URI=` inside the URL value itself.
+   - If Atlas supplies a URL ending in `/`, append `personal_entry` after that slash.
+   - If your password has special characters, URL-encode those characters in the connection string.
    - The `.env` file is ignored by Git; **never commit credentials**.
 
 4. Run both frontend and API together:
@@ -58,7 +61,7 @@ A fast, **mobile-first, Gujarati/English personal entry ledger** built with Reac
 ### If you see a Vite proxy error or a blank name list
 
 - Ensure you run `npm run dev` from the repository root, so **both** web and API processes start.
-- The API explicitly loads **server/.env**, even when launched from a different directory. Make sure `MONGODB_URI` is correctly filled in, including your Atlas password and database name; restart the dev command if you change it.
+- The API explicitly loads **server/.env**, even when launched from a different directory. Use only this one local file. Make sure `MONGODB_URI` starts with `mongodb+srv://` exactly, including both slashes, and includes your Atlas password and database name; restart the dev command if you change it. A malformed URL now prints a safe, specific message and does not retry until corrected.
 - Open **http://localhost:4000/api/health**. If it does not respond, inspect the `[api]` terminal output; if it says `{"ok":false}`, verify database-user permissions and Atlas Network Access. API requests receive a helpful HTTP 503 until MongoDB is ready.
 - The frontend proxy is fixed at `127.0.0.1:4000`; if you customize `PORT`, adjust `client/vite.config.ts` to match. Do not paste the private database URL into chat, the frontend, or GitHub.
 
@@ -108,7 +111,7 @@ personal-entry-software/
     src/index.ts
     src/math.ts
     tests/math.test.ts
-    .env.example
+    .env (local only, never committed)
   .gitignore
   package.json
   README.md

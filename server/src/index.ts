@@ -7,6 +7,7 @@ import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isValidDateString } from './math.js';
+import { isMongoUri } from './mongoUri.js';
 
 // Resolve server/.env independently of the directory from which npm is launched.
 // This works when executing server/src in development and server/dist in production.
@@ -166,7 +167,15 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 async function connectMongo(): Promise<void> {
   const uri = process.env.MONGODB_URI?.trim();
   if (!uri) {
-    console.error('[api] Missing MONGODB_URI. Create server/.env (see server/.env.example) and restart npm run dev.');
+    console.error('[api] Missing MONGODB_URI in server/.env. Add the Atlas URL after MONGODB_URI= and restart npm run dev.');
+    return;
+  }
+  if (!isMongoUri(uri)) {
+    // Never log the connection string: it contains the database password.
+    console.error('[api] Invalid MONGODB_URI scheme in server/.env.');
+    console.error('[api] The URL must start with mongodb+srv:// (Atlas) or mongodb://.');
+    console.error('[api] Keep the // after srv:. Do not use srv:// by itself.');
+    console.error('[api] Fix server/.env and restart npm run dev. No retries for a malformed URL.');
     return;
   }
   try {
