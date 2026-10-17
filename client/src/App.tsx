@@ -4,6 +4,7 @@ import { api, ApiError } from './lib/api';
 import { sectionLabel, t } from './lib/i18n';
 import type { Language, Person, Section } from './lib/types';
 import NameLedger from './components/NameLedger';
+import ConfirmDialog from './components/ConfirmDialog';
 
 function SectionIcon({ section, size = 19 }: { section: Section, size?: number }) {
   return section === 'buta' ? <Flower2 size={size} strokeWidth={1.9} /> : <Layers3 size={size} strokeWidth={1.9} />;
@@ -21,6 +22,7 @@ export default function App() {
   const [form, setForm] = useState<{ mode: 'add' | 'edit'; id?: string } | null>(null);
   const [nameValue, setNameValue] = useState('');
   const [busy, setBusy] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Person | null>(null);
 
   useEffect(() => { localStorage.setItem('ledger-language', lang); document.documentElement.lang = lang; }, [lang]);
   useEffect(() => {
@@ -64,14 +66,14 @@ export default function App() {
     } finally { setBusy(false); }
   };
   const removePerson = async (person: Person) => {
-    if (!window.confirm(t(lang, 'confirmDeleteName'))) return;
     setBusy(true); setError('');
     try {
       await api.deleteName(person._id);
       setPeople(old => old.filter(p => p._id !== person._id));
       if (selected?._id === person._id) setSelected(null);
       setForm(null);
-    } catch { setError(t(lang, 'genericError')); }
+      setDeleteTarget(null);
+    } catch { setError(t(lang, 'genericError')); setDeleteTarget(null); }
     finally { setBusy(false); }
   };
 
@@ -142,7 +144,7 @@ export default function App() {
                 <UserRound className="mx-auto mb-3 text-slate-300" size={35}/>
                 <p className="font-semibold">{search ? t(lang,'noResults') : t(lang,'noNames')}</p>
                 {!search && <p className="mt-1 text-sm text-muted">{t(lang,'noNamesHint')}</p>}
-              </div> : <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-2">
+              </div> : <div className="space-y-2.5">
                 {filtered.map(person => <div key={person._id} className="group flex min-w-0 items-center rounded-2xl border border-line bg-white p-1.5 shadow-soft transition-shadow hover:shadow-md">
                   <button className="flex min-h-[60px] min-w-0 flex-1 items-center gap-3 rounded-xl px-3 text-left hover:bg-paper"
                     onClick={() => { setSelected(person); setForm(null); }}>
@@ -151,7 +153,7 @@ export default function App() {
                     <ChevronRight size={18} className="shrink-0 text-slate-400"/>
                   </button>
                   <button className="icon-button h-9 w-9" title={t(lang,'rename')} aria-label={`${t(lang,'rename')}: ${person.name}`} onClick={()=>showForm('edit',person)}><Edit3 size={16}/></button>
-                  <button className="icon-button h-9 w-9 hover:text-red-600" title={t(lang,'deleteName')} aria-label={`${t(lang,'deleteName')}: ${person.name}`} disabled={busy} onClick={()=>void removePerson(person)}><Trash2 size={16}/></button>
+                  <button className="icon-button h-9 w-9 hover:text-red-600" title={t(lang,'deleteName')} aria-label={`${t(lang,'deleteName')}: ${person.name}`} disabled={busy} onClick={()=>setDeleteTarget(person)}><Trash2 size={16}/></button>
                 </div>)}
               </div>}
           </>}
@@ -161,5 +163,8 @@ export default function App() {
     <nav className="safe-bottom fixed bottom-0 left-0 right-0 z-40 flex gap-2 border-t border-line bg-white px-4 pt-2 md:hidden" aria-label="Sections">
       {nav('buta',true)}{nav('top',true)}
     </nav>
+    {deleteTarget && <ConfirmDialog title={t(lang,'deleteName')} message={t(lang,'confirmDeleteName')}
+      confirmLabel={t(lang,'deleteShort')} cancelLabel={t(lang,'cancel')} busy={busy}
+      onConfirm={()=>void removePerson(deleteTarget)} onCancel={()=>setDeleteTarget(null)} />}
   </div>;
 }

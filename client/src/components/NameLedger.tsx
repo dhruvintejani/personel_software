@@ -5,6 +5,7 @@ import { t } from '../lib/i18n';
 import type { Entry, EntryPatch, Language, Person, Section } from '../lib/types';
 import { formattedRupees, localToday, rowAmount } from '../lib/types';
 import EntryRow from './EntryRow';
+import ConfirmDialog from './ConfirmDialog';
 
 type Props = { lang: Language; section: Section; person: Person };
 type SaveState = 'saved' | 'saving' | 'error';
@@ -22,6 +23,9 @@ export default function NameLedger({ lang, section, person }: Props) {
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Entry | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const pending = useRef<Record<string, EntryPatch>>({});
   const timers = useRef<Record<string, number>>({});
   const inFlight = useRef(new Set<string>());
@@ -66,7 +70,7 @@ export default function NameLedger({ lang, section, person }: Props) {
 
   useEffect(() => {
     let active = true;
-    setLoading(true); setRows([]); setError(''); setSearch(''); setFilter('all');
+    setLoading(true); setRows([]); setError(''); setSearch(''); setFilter('all'); setEditingId(null);
     void api.getEntries(person._id, date)
       .then(data => { if (active) setRows(data); })
       .catch(() => { if (active) setError(t(lang, 'loadError')); })
@@ -100,6 +104,7 @@ export default function NameLedger({ lang, section, person }: Props) {
       // A slow save must not add an old-date entry to a newly selected day.
       if (activeDate.current === entryDate) {
         setRows(old => [created, ...old]);
+        setEditingId(created._id);
         setFilter('all'); setSearch('');
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -107,17 +112,22 @@ export default function NameLedger({ lang, section, person }: Props) {
     finally { setCreating(false); }
   };
   const removeEntry = async (entry: Entry) => {
-    if (!window.confirm(t(lang, 'confirmDeleteEntry'))) return;
+    if (deleting) return;
+    setDeleting(true);
     deleted.current.add(entry._id);
     delete pending.current[entry._id];
     clearTimeout(timers.current[entry._id]);
     setRows(old => old.filter(row => row._id !== entry._id));
-    try { await api.deleteEntry(entry._id); }
-    catch {
+    try {
+      await api.deleteEntry(entry._id);
+      if (editingId === entry._id) setEditingId(null);
+      setDeleteTarget(null);
+    } catch {
       deleted.current.delete(entry._id);
       setRows(old => [...old, entry].sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
       setError(t(lang, 'genericError'));
-    }
+      setDeleteTarget(null);
+    } finally { setDeleting(false); }
   };
   const moveEntry = (entry: Entry, next: string) => {
     if (entry.date === next) return;
@@ -176,9 +186,13 @@ export default function NameLedger({ lang, section, person }: Props) {
         <ClipboardList size={32} className="mx-auto mb-3 text-slate-300"/>
         <p className="font-semibold">{search || filter!=='all' ? t(lang,'noResults') : t(lang,'noEntries')}</p>
         {!search && filter==='all' && <p className="mt-1 text-sm text-muted">{t(lang,'noEntriesHint')}</p>}
-      </div> : <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-2 lg:gap-3">
+      </div> : <div className="space-y-2.5">
+        <div className="hidden lg:grid lg:grid-cols-[30px_minmax(80px,1fr)_70px_72px_108px_52px_152px] lg:gap-2 lg:px-4 lg:text-[11px] lg:font-semibold lg:text-muted">
+          <span>#</span><span>{t(lang,'titleOptional')}</span><span>{t(lang,'quantity')}</span><span>{t(lang,'price')}</span><span>{t(lang,'total')}</span><span>{t(lang,'done')}</span><span>{t(lang,'actions')}</span>
+        </div>
         {visible.map((row, idx) => <EntryRow key={row._id} index={idx} entry={row} lang={lang}
-          onUpdate={updateRow} onFlush={flush} onMove={moveEntry} onDelete={removeEntry}/>)}
+          editing={editingId===row._id} onToggleEdit={id=>setEditingId(old=>old===id?null:id)}
+          onUpdate={updateRow} onFlush={flush} onMove={moveEntry} onDelete={setDeleteTarget}/>)}
       </div>}
 
     {rows.length>0 && <button onClick={()=>void addEntry()} disabled={creating} className="btn-secondary mt-4 w-full border-dashed"><Plus size={18}/>{t(lang,'addEntry')}</button>}
@@ -189,5 +203,8 @@ export default function NameLedger({ lang, section, person }: Props) {
         <div className="truncate text-right text-xl font-bold tabular-nums text-brand sm:text-2xl">{formattedRupees(total)}</div>
       </div>
     </div>
+    {deleteTarget && <ConfirmDialog title={t(lang,'removeEntry')} message={t(lang,'confirmDeleteEntry')}
+      confirmLabel={t(lang,'deleteShort')} cancelLabel={t(lang,'cancel')}
+      busy={deleting} onConfirm={()=>void removeEntry(deleteTarget)} onCancel={()=>setDeleteTarget(null)} />}
   </div>;
 }

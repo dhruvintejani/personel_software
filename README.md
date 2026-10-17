@@ -8,12 +8,13 @@ A fast, **mobile-first, Gujarati/English personal entry ledger** built with Reac
 - Search names instantly on **both** pages, and open the search icon to find entry titles, quantities and amounts within a selected name.
 - Add, rename and remove names; selecting a name opens its ledger.
 - Today's **local** date selected by default; change it to view or add entries on any date. Slow entry creation will not mix records across dates.
-- Unlimited entries per day, displayed as compact cards on mobile and a roomy responsive layout on desktop.
+- Unlimited entries per day, shown as compact mobile rows and **one full-width entry per horizontal row** on desktop (no side-by-side card stretching).
 - Each entry has an optional title, quantity, editable rate, completion checkbox and automatic total.
 - **No separate "into" input**: `quantity × price = row total`. Buta defaults to **₹0.16** and Top to **₹0.40**; changing one row's price never affects other rows.
 - Grand total for **all** entries for the currently selected name and date, regardless of search/completion filter.
 - Auto-save after a 650ms pause while typing, or immediately on field blur, and clear save/failure status.
-- Change an existing entry's date under its expand-arrow menu; edit and delete entries.
+- Each entry has **visible Edit and Delete controls**. Only the selected row opens its edit panel; edit title, quantity, rate, and date there. Checkbox remains editable directly.
+- Delete actions use an accessible in-app confirmation modal (not a browser popup); deleting a name warns that all its entries are deleted.
 - Compact touch-friendly entry controls, bottom section tabs and a fixed total on mobile.
 - No analytics, reports, invoices, roles, notifications, payment features or other unnecessary screens.
 
